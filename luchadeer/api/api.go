@@ -186,7 +186,7 @@ func proxyRequest(context appengine.Context, w http.ResponseWriter, r *http.Requ
 			return dErr
 		}
 
-		ttl := config.ListRequestCacheTTL
+		ttl := c.TTL
 		if parsed.StatusCode != giantbomb.StatusOK && parsed.StatusCode != giantbomb.StatusRestrictedContent {
 			// we got an error from the content provider, log it and drop the ttl.
 			context.Infof("Bad status returned by content provider: %v: %v", parsed.StatusCode, parsed.Message)
