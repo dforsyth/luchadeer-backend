@@ -9,10 +9,12 @@ import (
 	"net/http"
 )
 
-const PULL_VIDEOS_URL = "/cron/pull_videos"
+const PullVideosURL = "/cron/pull_videos"
+const PollChatURL = "/cron/poll_chat"
 
 func Init() {
-	http.HandleFunc(PULL_VIDEOS_URL, pullVideos)
+	http.HandleFunc(PullVideosURL, pullVideos)
+	http.HandleFunc(PollChatURL, pollChat)
 }
 
 func pullVideos(w http.ResponseWriter, r *http.Request) {
@@ -41,4 +43,21 @@ func pullVideos(w http.ResponseWriter, r *http.Request) {
 
 		// TODO: invalidate list caches
 	}
+}
+
+func pollChat(w http.ResponseWriter, r *http.Request) {
+	context := appengine.NewContext(r)
+
+	title, err := giantbomb.GetChat(context)
+	if err != nil {
+		context.Infof("pollChat: %v", err)
+		return
+	}
+	_, perr := db.PutChat(context, title)
+	if perr != nil {
+		context.Infof("PutChat: %v", perr)
+		return
+	}
+
+	tasks.PushAlertForChat(context, title)
 }

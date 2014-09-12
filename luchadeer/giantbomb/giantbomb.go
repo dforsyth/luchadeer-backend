@@ -4,14 +4,24 @@ import (
 	"appengine"
 	"appengine/urlfetch"
 	"encoding/json"
+	"errors"
+	"html"
+	"io/ioutil"
 	"luchadeer/config"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 )
 
-const GIANT_BOMB_API_URL = "http://www.giantbomb.com/api/"
-const GIANT_BOMB_CHAT_URL = "http://www.giantbomb.com/chat/"
+const GiantBombURL = "http://www.giantbomb.com/"
+const GiantBombApiURL = GiantBombURL + "api/"
+
+// markup for chat checks
+const LiveTitleMarkup = "<h4 class=\"grad-text\">Live on Giant Bomb!</h4>"
+const JoinButtonMarkup = "<p><button class=\"btn btn-primary\">Join the chat</button></p>"
+const Header2OpenMarkup = "<h2>"
+const Header2CloseMarkup = "</h2>"
 
 // TODO move these into db
 type Video struct {
@@ -56,8 +66,13 @@ type VideosGiantBombResponse struct {
 	Results []Video `json:"results"`
 }
 
+type Chat struct {
+	Title     string
+	FirstSeen time.Time
+}
+
 func GetVideos(context appengine.Context, videoTypes []int, offset, limit int) (*VideosGiantBombResponse, error) {
-	endpoint := GIANT_BOMB_API_URL + "videos/"
+	endpoint := GiantBombApiURL + "videos/"
 
 	values := url.Values{}
 	values.Add("api_key", config.PullApiKey)
@@ -85,4 +100,51 @@ func GetVideos(context appengine.Context, videoTypes []int, offset, limit int) (
 	}
 
 	return &decoded, nil
+}
+
+func GetChat(context appengine.Context) (string, error) {
+	client := urlfetch.Client(context)
+
+	response, err := client.Get(GiantBombURL)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+
+	// just brutalize it.
+	doc, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return "", err
+	}
+
+	cast := string(doc)
+
+	liveTitle := strings.Index(cast, LiveTitleMarkup)
+	joinButton := strings.Index(cast, JoinButtonMarkup)
+
+	if liveTitle < 0 || joinButton < 0 {
+		return "", errors.New("Couldn't find indicator tags in " + GiantBombURL)
+	}
+
+	if liveTitle > joinButton {
+		return "", errors.New("Page doesn't look as we expect")
+	}
+
+	searchable := cast[liveTitle+len(LiveTitleMarkup) : joinButton]
+	o := strings.Index(searchable, Header2OpenMarkup)
+	c := strings.Index(searchable, Header2CloseMarkup)
+
+	if o < 0 || c < 0 {
+		return "", errors.New("Cant find header tags")
+	}
+
+	if c < o {
+		return "", errors.New("Title close came before title open in chat page")
+	}
+
+	title := html.UnescapeString(searchable[o+len(Header2OpenMarkup) : c])
+
+	context.Infof("Detected chat title: %v", title)
+
+	return title, nil
 }

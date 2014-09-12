@@ -13,9 +13,11 @@ import (
 )
 
 const PUSH_ALERTS_FOR_VIDEO_URL = "/task/push_alerts_for_video"
+const PUSH_ALERT_FOR_CHAT_URL = "/task/push_alert_for_chat"
 
 func Init() {
 	http.HandleFunc(PUSH_ALERTS_FOR_VIDEO_URL, pushAlertsForVideo)
+	http.HandleFunc(PUSH_ALERT_FOR_CHAT_URL, pushAlertForChat)
 }
 
 func PushAlertsForVideo(context appengine.Context, video *giantbomb.Video) {
@@ -44,31 +46,74 @@ func pushAlertsForVideo(w http.ResponseWriter, r *http.Request) {
 	videoName := r.FormValue("video_name")
 	videoId := r.FormValue("video_id")
 
+	registrationIds := registrationIdsForVideoType(context, videoType)
+	if registrationIds == nil {
+		context.Infof("No registrationIds for %v", videoType)
+		return
+	}
+
+	push := gcm.NewGCM(config.GCMApiKey, urlfetch.Client(context))
+
+	pushChunked(context, push, registrationIds, map[string]interface{}{"video_name": videoName, "video_id": videoId, "video_type": videoType})
+}
+
+func registrationIdsForVideoType(context appengine.Context, videoType string) []string {
 	preferences, err := db.NotificationSubscriptions(context, videoType)
 	if err != nil {
 		context.Errorf("Couldn't fetch subscriptions for push: %v", err)
+		return nil
 	}
 
 	registrationIds := []string{}
 	for _, preference := range preferences {
 		registrationIds = append(registrationIds, preference.GCMRegistrationId)
 	}
+	return registrationIds
+}
 
-	push := gcm.NewGCM(config.GCMApiKey, urlfetch.Client(context))
-
-	// we can only push 1000 registered ids at a time. for now, we'll just chunk in this task. we might want to chain later, though.
+func pushChunked(context appengine.Context, push *gcm.GCM, registrationIds []string, data map[string]interface{}) {
 	for off := 0; off < len(registrationIds); off += 1000 {
 		max := off + 1000
 		if max > len(registrationIds) {
 			max = len(registrationIds) - off
 		}
-		pushResult, err := push.Send(
-			map[string]interface{}{"video_name": videoName, "video_id": videoId},
-			registrationIds[off:max])
-
+		pushResult, err := push.Send(data, registrationIds[off:max])
 		if err != nil {
-			context.Errorf("Push error: %v", err)
+			context.Errorf("Push error (%v-%v): %v", off, max, err)
 		}
-		context.Infof("Push result %v", pushResult)
+		context.Infof("Push result (%v-%v): %v", off, max, pushResult)
 	}
+}
+
+func PushAlertForChat(context appengine.Context, title string) {
+	task := taskqueue.NewPOSTTask(
+		PUSH_ALERT_FOR_CHAT_URL,
+		map[string][]string{
+			"title": {title},
+		},
+	)
+
+	if _, err := taskqueue.Add(context, task, ""); err != nil {
+		context.Errorf("PushAlertForChat: %v", err.Error())
+	}
+}
+
+func pushAlertForChat(w http.ResponseWriter, r *http.Request) {
+	if config.GCMApiKey == "" {
+		return
+	}
+
+	context := appengine.NewContext(r)
+
+	registrationIds := registrationIdsForVideoType(context, "live")
+	if registrationIds == nil {
+		context.Infof("No registrationIds for live")
+		return
+	}
+
+	title := r.FormValue("title")
+
+	push := gcm.NewGCM(config.GCMApiKey, urlfetch.Client(context))
+
+	pushChunked(context, push, registrationIds, map[string]interface{}{"video_name": title, "video_id": 0, "video_type": "live"})
 }

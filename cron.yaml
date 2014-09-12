@@ -2,3 +2,6 @@ cron:
 - description: Pull latest videos
   url: /cron/pull_videos
   schedule: every 1 hours
+- description: Check for live chat
+  url: /cron/poll_chat
+  schedule: every 1 hours

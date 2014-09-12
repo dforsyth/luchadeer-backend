@@ -3,6 +3,7 @@ package db
 import (
 	"appengine"
 	"appengine/datastore"
+	"errors"
 	"luchadeer/giantbomb"
 	"time"
 )
@@ -14,6 +15,7 @@ type NotificationPreference struct {
 
 const KIND_NOTIFICATION_SUBSCRIPTION = "notificationpreference"
 const KIND_GIANT_BOMB_VIDEO = "giantbombvideo"
+const KIND_GIANT_BOMB_CHAT = "giantbombchat"
 
 func UpdateNotificationPreference(context appengine.Context, preference *NotificationPreference) error {
 	key := datastore.NewKey(context, KIND_NOTIFICATION_SUBSCRIPTION, preference.GCMRegistrationId, 0, nil)
@@ -60,7 +62,7 @@ func PutNewVideos(context appengine.Context, videos []giantbomb.Video) ([]*giant
 				if e == datastore.ErrNoSuchEntity {
 					video := videos[i]
 					if pe := PutVideo(context, &video); pe != nil {
-						context.Errorf("Push error %v", pe)
+						context.Errorf("PutVideo error %v", pe)
 					} else {
 						newVideos = append(newVideos, &video)
 					}
@@ -72,4 +74,27 @@ func PutNewVideos(context appengine.Context, videos []giantbomb.Video) ([]*giant
 	}
 
 	return newVideos, nil
+}
+
+func PutChat(context appengine.Context, title string) (*giantbomb.Chat, error) {
+	key := datastore.NewKey(context, KIND_GIANT_BOMB_CHAT, title, 0, nil)
+
+	var chat giantbomb.Chat
+
+	if err := datastore.Get(context, key, &chat); err != nil {
+		switch err {
+		case (datastore.ErrNoSuchEntity):
+			chat.Title = title
+			chat.FirstSeen = time.Now()
+			if _, pe := datastore.Put(context, key, &chat); pe != nil {
+				context.Errorf("Put error: %v", pe)
+			} else {
+				return &chat, nil
+			}
+		default:
+			return nil, err
+		}
+	}
+
+	return nil, errors.New("Chat is already recorded")
 }
