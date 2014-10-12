@@ -41,6 +41,7 @@ import (
 type NotificationPreference struct {
 	GCMRegistrationId string   `json:"gcm_registration_id"`
 	Categories        []string `json:"categories"`
+	LastUpdated       time.Time
 }
 
 const KIND_NOTIFICATION_SUBSCRIPTION = "notificationpreference"
@@ -49,6 +50,7 @@ const KIND_GIANT_BOMB_CHAT = "giantbombchat"
 
 func UpdateNotificationPreference(context appengine.Context, preference *NotificationPreference) error {
 	key := datastore.NewKey(context, KIND_NOTIFICATION_SUBSCRIPTION, preference.GCMRegistrationId, 0, nil)
+	preference.LastUpdated = time.Now()
 	_, err := datastore.Put(context, key, preference)
 
 	return err

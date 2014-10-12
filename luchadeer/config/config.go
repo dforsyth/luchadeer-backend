@@ -37,6 +37,9 @@ import (
 const ContentProviderHost = "www.giantbomb.com"
 const ContentProviderApiPath = "/api"
 
+const YouTubeApiHost = "www.googleapis.com"
+const YouTubeSearchPath = "/youtube/v3/search"
+
 // api keys
 
 // cloud messaging api key. leave blank to not send push notifications
@@ -50,6 +53,9 @@ const PullApiKey = ""
 // Api key used to proxy users to the content provider. Use a subscriber key here only if you want
 // to proxy subscriber content... which you probably dont.
 const ProxyApiKey = ""
+
+const YouTubeApiKey = ""
+const UnarchivedChannelId = ""
 
 // number of videos we check with each pull
 const VideoPullSize = 1
@@ -85,4 +91,4 @@ const ListRequestCacheTTL = time.Hour
 const GameDetailCacheTTL = time.Hour * 24
 const VideoDetailCacheTTL = time.Hour * 24 * 7
 
-var BadRequestCacheTTL = time.Hour
+const BadRequestCacheTTL = time.Hour
