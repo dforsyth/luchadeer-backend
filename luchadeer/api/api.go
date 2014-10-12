@@ -61,7 +61,7 @@ func Init() {
 
 	http.Handle("/api/1/giantbomb/search/", NewGiantBombCacheHandler(SearchCacheConfig))
 
-	http.Handle("/api/1/youtube/unarchived_videos", &CacheHandler{&YouTubeProxyHandler{YouTubeCacheConfig}})
+	http.Handle("/api/1/youtube/unarchived_videos", NewYouTubeCacheHandler(YouTubeCacheConfig))
 }
 
 // update user preferences. post only.
@@ -207,6 +207,10 @@ type CacheHandler struct {
 
 func NewGiantBombCacheHandler(c *CacheConfig) *CacheHandler {
 	return &CacheHandler{&GiantBombProxyHandler{c}}
+}
+
+func NewYouTubeCacheHandler(c *CacheConfig) *CacheHandler {
+	return &CacheHandler{&YouTubeProxyHandler{c}}
 }
 
 func (h *CacheHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
